@@ -1,0 +1,323 @@
+#!/usr/bin/env python
+
+"""
+tinc-rollout
+============
+
+This script sets up or updates a host to connect to a tinc vpn.  It
+allows you to start a network from scratch, join an existing network,
+decide which peers you will connect with, and can package up your tinc
+configuration so others can join the network too.
+
+This is aimed at users who just want to make a bunch of boxes talk to
+each other.  It won't setup bridging between two segments or anything
+like that.
+
+Creating A New Network
+----------------------
+
+If you want to make a network from scratch (as opposed to joining an
+existing network), use the "new" command:
+
+tinc-rollout --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
+
+The IP address is how your box will be known on the vpn.  It should
+probably begin with 10. or 198.162 or 17.16.  Your hostname is the
+name you would like to be called on your network.  If you already have
+a hostname in /etc/hostname, you might want to just use that.
+
+Joining An Existing Network
+---------------------------
+
+tinc-rollout --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc-rollout.tar
+
+The tinc-rollout.tar file should be provided by somebody else in the
+vpn.  It contains some basic configuration and the host keys for peer
+nodes. 
+
+Adding Nodes To Your Network
+----------------------------
+
+If in the future new machines join your vpn, simply drop their
+host file in /etc/tinc/network_name/hosts or do another "tinc-rollout
+--install" right on top of your existing config.
+
+Inviting Others Into the Network
+--------------------------------
+
+After you do the install, you might want to use the "package" command
+to add your host key to the tinc-rollout.tar file.  Then you can give
+that file to other folks to configure their own tinc nodes.
+
+
+Bugs and Todos
+--------------
+
+I wrote and tested this on Debian Wheezy.  Patches welcome for other
+systems, but fixes, or new capabilities!  Grep the code for 'TODO' to
+get a list of future work.
+
+TODO: support ipv6
+
+License and Copyright
+---------------------
+
+This software is Copyright (c) 2012 James Vasile.  It is published
+under the terms of the GNU General Public License, version 3 or later.
+A copy of the latest version of that license should be available at
+http://www.gnu.org/licenses/gpl.html
+
+Thanks
+------
+
+Big thanks to Eben Moglen.  I can't count the number of times he told
+me to look at tinc over the last few years and especially in the
+FreedomBox context.  I just wish I'd gotten to it sooner.
+"""
+
+import sys, os, subprocess, argparse, tarfile, stat
+
+## This is just defaults that is used by argparse
+tar_file = os.path.basename(sys.argv[0])+".tar"
+
+def slurp_if_exists(fname):
+    if os.path.exists(fname):
+        with open(fname, 'r') as INF:
+            return INF.read()
+
+class chdir:
+    def __enter__(self):
+        self.curdir = os.getcwd()
+        os.chdir(self.direc)
+        return None
+    def __init__(self, direc):
+        self.direc = direc
+    def __exit__(self, type, value, traceback):
+        os.chdir(self.curdir)
+
+class NoHostnameError(Exception):
+    pass
+class NoVPNNameError(Exception):
+    pass
+
+def parse_params(argv=None):
+    if not argv:
+        argv = sys.argv
+
+    parser = argparse.ArgumentParser(description='Add/remove machines from your tinc vpn network.')
+    act = parser.add_mutually_exclusive_group()
+    act.add_argument('--install', dest='action', help='install machines into the tinc vpn', action='store_const', const='install')
+    act.add_argument('--new', dest='action', help='Start a new tinc vpn', action='store_const', const='new')
+    #act.add_argument('--remove', dest='action', help='remove machines from the tinc vpn', action='store_const', const='remove') #TODO: implement remove
+    act.add_argument('--package', dest='action', help='tar up the vpn configuration for export', action='store_const', const='package')
+
+    # options for all actions
+    parser.add_argument('-n', '--name', dest="vpn_name", default=None, action='store',
+                        help='the name of the vpn (maps to tincd -n)')
+    parser.add_argument('--root', default='.', help="Where your tinc config dir is. Defaults to current dir")
+
+    # options for new and install actions
+    parser.add_argument('--hostname', help='Hostname of this machine on the vpn (defaults to /etc/hostname)')
+    parser.add_argument('--ip', help="internal (vpn) IP address of this node")
+
+    # options needed by install action
+    parser.add_argument('--peer', action='append', default=[],
+                        help='peer node to add or remove. May be specified more than once. Default is all known possible peers.')
+    parser.add_argument('--tar', default=tar_file,
+                        help="path to tar file containing tinc.conf and host keys. If blank, we'll look for %s." % tar_file)
+    args = parser.parse_args()
+
+    if not args.vpn_name:
+        sys.stderr.write("Must provide the name of a vpn to operate on.\n")
+        sys.exit()
+        raise NoVPNNameError
+
+    #if not args.tar:
+     #   args.tar = os.path.join(args.root, tar_file)
+
+    if not args.action:
+        parser.print_usage()
+
+    if not args.hostname:
+        args.hostname = slurp_if_exists("/etc/hostname").strip()
+    if not args.hostname:
+        sys.stderr.write("Cannot figure out your hostname.  Please provide one.\n")
+        sys.exit()
+        raise NoHostnameError
+
+    if args.action == 'install' or args.action=='new':
+        if not args.ip:
+            sys.stderr.write("Must provide ip address of this machine on the vpn (e.g. 172.16.xx.xx).\n")
+            sys.exit()
+        
+    return args
+
+class TincRollout():
+    def __init__(o, opt={}):
+        o.__dict__.update(vars(opt))
+        o.vpn_dir = os.path.abspath(os.path.join(o.root, o.vpn_name))
+        o.hosts_dir = os.path.join(o.vpn_dir, 'hosts')
+
+    def gen_keys(o):
+        ## Gen keys if needed
+        machine_file = os.path.join(o.root, o.vpn_name, "hosts", o.hostname)
+        key_file = os.path.join(o.root, o.vpn_name, "rsa_key.priv")
+        gen_keys = True
+        if os.path.exists(key_file) and os.path.exists(machine_file):
+            found_subnet=False
+            found_key = False
+            with open(machine_file, 'r') as INF:
+                for line in INF.readlines():
+                    if line.startswith("Subnet"):
+                        found_subnet = True
+                    if line.strip() == "-----BEGIN RSA PUBLIC KEY-----":
+                        found_key = True
+            if found_subnet and found_key:
+                #print "%s already exists.  No need to generate keys." % machine_file
+                gen_keys = False
+        if gen_keys: # ugly ugly ugly
+            if os.path.exists(key_file):
+                os.unlink(key_file)
+            with open(machine_file, 'w') as OUTF:
+                OUTF.write("Subnet = %s/32\n" % o.ip)
+            subprocess.call('tincd -n "%s" --generate-keys' % o.vpn_name, shell=True)
+
+    def add_nets_boot(o):
+        """Add vpn to nets.boot"""
+        if not os.path.exists("nets.boot"):
+            with open("nets.boot", 'a') as OUTF:
+                OUTF.write(o.vpn_name + "\n")
+        else:
+            with open("nets.boot", 'r') as INF:
+                lines = INF.readlines()
+            found = False
+            for line in lines:
+                if line.strip() == o.vpn_name:
+                    found = True
+            if not found:
+                with open("nets.boot", 'a') as OUTF:
+                    OUTF.write(o.vpn_name + "\n")
+
+
+class Package(TincRollout):
+    def package(o):
+        print "Packaging %s for sending to other machines." % o.vpn_name
+        if os.path.exists(o.tar):
+            os.unlink(o.tar)
+        with tarfile.open(o.tar, mode='w') as OUT:
+            with chdir(o.vpn_dir):
+                for f in os.listdir(o.hosts_dir):
+                    if not f.endswith("~"):
+                        fname = os.path.join('hosts', f)
+                        OUT.add(fname)
+
+class Install(TincRollout):    
+    def install_peers(o):
+        """Install host key files for peers.  Overwrites files that
+        already exists.  Doesn't write local host file."""
+
+        with tarfile.open(o.tar, 'r') as TAR:
+            for member in TAR.getmembers():
+                (direc, fname) = os.path.split(member.name)
+                if fname != o.hostname:
+                    if not o.peer or fname in o.peer:
+                        ## Sure, we could use TAR.extractall, but
+                        ## reading the data and then writing the host
+                        ## file protects against malicious tar files
+                        ## with absolute paths in them.
+                        contents = TAR.extractfile(member).read()
+                        with open(os.path.join(o.vpn_dir, member.name),'w') as OUTF:
+                            OUTF.write(contents)
+                        
+    def add_connect_to(o):
+        """Look at hosts in hosts dir, add any that have addresses to tinc.conf.
+
+        We can't just look at the tar file because there might be
+        additional hosts that were added by hand or just happen to be
+        missing from the tar file.
+
+        Assumes tinc.conf exists so we can add ConnectTo entries.
+        """
+
+        connect = []
+        for f in os.listdir(o.hosts_dir):
+            fname = os.path.join(o.hosts_dir, f)
+            with open(fname, 'r') as INF:
+                for line in INF.readlines():
+                    if line.startswith("Address = "): #TODO: this should be a regex
+                        connect.append(f)
+
+        present = []
+        with open(os.path.join(o.vpn_dir, 'tinc.conf'), 'r+') as INF:
+            for line in INF.readlines():
+                if line.startswith("ConnectTo = "):
+                    present.append(line.split('=')[1].strip())
+            for host in connect:
+                if not host in present:
+                    INF.write("ConnectTo = %s\n" % host)
+
+    def install(o):
+        print "Installing %s tinc files" % o.vpn_name
+        NewVPN(o).create() # do a base install w/o overwriting keys
+        o.install_peers()
+        o.add_connect_to()
+                    
+        print "\nIf this machine has a public-facing IP address, you might want to add that to %s." % os.path.join(o.root, o.vpn_name, "hosts", o.hostname)
+        print "If your machine was not in the tar file, you might want to do `%s --package -n %s` to "  % (os.path.basename(sys.argv[0]), o.vpn_name)
+        print "put your machine in the tar file.  Then you can distribute the tar to get others on to the network."
+        print "\nYou should probably restart the tinc server now."
+
+class Remove(TincRollout):
+    def remove(o):
+        print "not implemented"
+
+class NewVPN(TincRollout):
+    """Do a base install, without overwriting existing keys or hosts."""
+    def write_config(o, fname):
+        filespec = os.path.join(o.vpn_dir, fname)
+        d = {
+            "tinc-up":"#!/bin/sh\n$IP=%s\nifconfig $INTERFACE $IP netmask 255.255.255.0\n" % o.ip,
+            "tinc-down":"#!/bin/sh\n$VPN_NAME=%s\nifconfig $VPN_NAME down\n" % o.vpn_name,
+            "tinc.conf":"Name = %s\nAddressFamily = ipv4\nDevice = /dev/net/tun\nLocalDiscovery = yes\n" % o.hostname,
+            }
+        with open(filespec, 'w') as OUTF:
+            OUTF.write(d[fname])
+        if fname in ['tinc-up', 'tinc-down']:
+            os.chmod(filespec, os.stat(filespec).st_mode | stat.S_IEXEC)
+    def write_host(o):
+        fname = os.path.join(o.hosts_dir, o.hostname)
+        if not os.path.exists(fname):
+            with open(fname, 'w') as OUTF:
+                OUTF.write("Subnet = %s/32\n" % o.ip)
+
+    def create(o):
+        o.add_nets_boot()
+        o.vpn_dir = os.path.abspath(os.path.join(o.root, o.vpn_name))
+        o.hosts_dir = os.path.join(o.vpn_dir, 'hosts')
+        if not os.path.exists(o.vpn_dir):
+            os.mkdir(o.vpn_dir)
+        o.write_config('tinc.conf')
+        o.write_config('tinc-up')
+        o.write_config('tinc-down')
+        if not os.path.exists(o.hosts_dir):
+            os.mkdir(o.hosts_dir)
+        o.write_host()
+        o.gen_keys()
+
+def main(argv):
+    opt = parse_params(argv)
+    if opt.action == "package":
+        Package(opt).package()
+    elif opt.action == "install":
+        Install(opt).install()
+    elif opt.action == "remove":
+        Remove(opt).remove()
+    elif opt.action == "new":
+        NewVPN(opt).create()
+if __name__ == "__main__":
+    if sys.argv[1] == "document":
+        with open("README.mdwn", 'w') as OUTF:
+            OUTF.write(__doc__)
+        sys.exit()
+
+    main(sys.argv)
