@@ -292,8 +292,6 @@ class NewVPN(TincRollout):
 
     def create(o):
         o.add_nets_boot()
-        o.vpn_dir = os.path.abspath(os.path.join(o.root, o.vpn_name))
-        o.hosts_dir = os.path.join(o.vpn_dir, 'hosts')
         if not os.path.exists(o.vpn_dir):
             os.mkdir(o.vpn_dir)
         o.write_config('tinc.conf')
