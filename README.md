@@ -11,6 +11,11 @@ This is aimed at users who just want to make a bunch of boxes talk to
 each other.  It won't setup bridging between two segments or anything
 like that.
 
+You should run this script as root (or any other user who is allowed
+to write to /etc/tinc).  This script creates files in the current
+directory, so you should run it from /etc/tinc (or use the --root
+parameter to specify that directory).
+
 Creating A New Network
 ----------------------
 
@@ -63,7 +68,12 @@ License and Copyright
 This software is Copyright (c) 2012 James Vasile.  It is published
 under the terms of the GNU General Public License, version 3 or later.
 A copy of the latest version of that license should be available at
-http://www.gnu.org/licenses/gpl.html
+http://www.gnu.org/licenses/gpl.html  See COPYING for details.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
 
 Thanks
 ------

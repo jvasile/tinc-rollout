@@ -70,7 +70,12 @@ License and Copyright
 This software is Copyright (c) 2012 James Vasile.  It is published
 under the terms of the GNU General Public License, version 3 or later.
 A copy of the latest version of that license should be available at
-http://www.gnu.org/licenses/gpl.html
+http://www.gnu.org/licenses/gpl.html  See COPYING for details.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
 
 Thanks
 ------
@@ -80,7 +85,7 @@ me to look at tinc over the last few years and especially in the
 FreedomBox context.  I just wish I'd gotten to it sooner.
 """
 
-import sys, os, subprocess, argparse, tarfile, stat
+import sys, os, subprocess, argparse, tarfile, stat, logging
 
 ## This is just defaults that is used by argparse
 tar_file = os.path.basename(sys.argv[0])+".tar"
@@ -104,6 +109,30 @@ class NoHostnameError(Exception):
     pass
 class NoVPNNameError(Exception):
     pass
+
+class SingleLevelFilter(logging.Filter):
+    """Licensed under the MIT License (http://opensource.org/licenses/mit-license.php)
+    From https://code.google.com/p/sqlalchemy-migrate/source/browse/migrate/versioning/shell.py?r=38dca475c55333aab047d65503a15c470170336d"""
+    def __init__(self, min=None, max=None):
+        self.min = min or 0
+        self.max = max or 100
+
+    def filter(self, record):
+        return self.min <= record.levelno <= self.max
+
+def config_logger():
+    global log
+    h1 = logging.StreamHandler(sys.stdout)
+    f1 = SingleLevelFilter(max=logging.INFO)
+    h1.addFilter(f1)
+    rootLogger = logging.getLogger()
+    rootLogger.addHandler(h1)
+    h2 = logging.StreamHandler(sys.stderr)
+    f2 = SingleLevelFilter(min=logging.WARN)
+    h2.addFilter(f2)
+    rootLogger.addHandler(h2)
+    log = logging.getLogger("my.logger")
+    log.setLevel(logging.INFO)
 
 def parse_params(argv=None):
     if not argv:
@@ -135,19 +164,13 @@ def parse_params(argv=None):
 
     args = parser.parse_args()
 
-    global VERBOSE
     if args.verbose:
-        VERBOSE = 5
-    else:
-        VERBOSE = 0
+        log.setLevel(logging.DEBUG)
 
     if not args.vpn_name:
         sys.stderr.write("Must provide the name of a vpn to operate on.\n")
         sys.exit()
         raise NoVPNNameError
-
-    #if not args.tar:
-     #   args.tar = os.path.join(args.root, tar_file)
 
     if not args.action:
         parser.print_usage()
@@ -166,16 +189,12 @@ def parse_params(argv=None):
         
     return args
 
-def log(level, msg):
-    if level <= VERBOSE:
-        print msg
-
 class TincRollout():
     def __init__(o, opt={}):
         o.__dict__.update(vars(opt))
-        log(5, "o.root = %s" % o.root)
+        log.debug("o.root = %s" % o.root)
         o.vpn_dir = os.path.abspath(os.path.join(o.root, o.vpn_name))
-        log(5, "o.vpn_dir = %s" % o.vpn_dir)
+        log.debug("o.vpn_dir = %s" % o.vpn_dir)
         o.hosts_dir = os.path.join(o.vpn_dir, 'hosts')
 
     def gen_keys(o):
@@ -193,7 +212,7 @@ class TincRollout():
                     if line.strip() == "-----BEGIN RSA PUBLIC KEY-----":
                         found_key = True
             if found_subnet and found_key:
-                print "%s already exists.  No need to generate keys." % machine_file
+                log.info("%s already exists.  No need to generate keys." % machine_file)
                 gen_keys = False
         if gen_keys: # ugly ugly ugly
             if os.path.exists(key_file):
@@ -221,7 +240,7 @@ class TincRollout():
 
 class Package(TincRollout):
     def package(o):
-        print "Packaging %s for sending to other machines." % o.vpn_name
+        log.info("Packaging %s for sending to other machines." % o.vpn_name)
         if os.path.exists(o.tar):
             os.unlink(o.tar)
         with tarfile.open(o.tar, mode='w') as OUT:
@@ -277,19 +296,19 @@ class Install(TincRollout):
                     INF.write("ConnectTo = %s\n" % host)
 
     def install(o):
-        print "Installing %s tinc files" % o.vpn_name
+        log.info("Installing %s tinc files" % o.vpn_name)
         NewVPN(o).create() # do a base install w/o overwriting keys
         o.install_peers()
         o.add_connect_to()
                     
-        print "\nIf this machine has a public-facing IP address, you might want to add that to %s." % os.path.join(o.root, o.vpn_name, "hosts", o.hostname)
-        print "If your machine was not in the tar file, you might want to do `%s --package -n %s` to "  % (os.path.basename(sys.argv[0]), o.vpn_name)
-        print "put your machine in the tar file.  Then you can distribute the tar to get others on to the network."
-        print "\nYou should probably restart the tinc server now."
+        log.info("\nIf this machine has a public-facing IP address, you might want to add that to %s." % os.path.join(o.root, o.vpn_name, "hosts", o.hostname)
+                 + "If your machine was not in the tar file, you might want to do `%s --package -n %s` to "  % (os.path.basename(sys.argv[0]), o.vpn_name)
+                 + "put your machine in the tar file.  Then you can distribute the tar to get others on to the network."
+                 + "\nYou should probably restart the tinc server now.")
 
 class Remove(TincRollout):
     def remove(o):
-        print "not implemented"
+        log.error("Removing hosts not yet implemented.")
 
 class NewVPN(TincRollout):
     """Do a base install, without overwriting existing keys or hosts."""
@@ -323,6 +342,7 @@ class NewVPN(TincRollout):
         o.gen_keys()
 
 def main(argv):
+    config_logger()
     opt = parse_params(argv)
     if opt.action == "package":
         Package(opt).package()
@@ -334,7 +354,7 @@ def main(argv):
         NewVPN(opt).create()
 if __name__ == "__main__":
     if sys.argv[1] == "document":
-        with open("README.mdwn", 'w') as OUTF:
+        with open("README.md", 'w') as OUTF:
             OUTF.write(__doc__)
         sys.exit()
 
