@@ -110,6 +110,7 @@ def parse_params(argv=None):
     act.add_argument('--new', dest='action', help='Start a new tinc vpn', action='store_const', const='new')
     #act.add_argument('--remove', dest='action', help='remove machines from the tinc vpn', action='store_const', const='remove') #TODO: implement remove
     act.add_argument('--package', dest='action', help='tar up the vpn configuration for export', action='store_const', const='package')
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true')
 
     # options for all actions
     parser.add_argument('-n', '--name', dest="vpn_name", default=None, action='store',
@@ -126,6 +127,12 @@ def parse_params(argv=None):
     parser.add_argument('--tar', default=tar_file,
                         help="path to tar file containing tinc.conf and host keys. If blank, we'll look for %s." % tar_file)
     args = parser.parse_args()
+
+    global VERBOSE
+    if args.verbose:
+        VERBOSE = 5
+    else:
+        VERBOSE = 0
 
     if not args.vpn_name:
         sys.stderr.write("Must provide the name of a vpn to operate on.\n")
@@ -152,10 +159,16 @@ def parse_params(argv=None):
         
     return args
 
+def log(level, msg):
+    if level <= VERBOSE:
+        print msg
+
 class TincRollout():
     def __init__(o, opt={}):
         o.__dict__.update(vars(opt))
+        log(5, "o.root = %s" % o.root)
         o.vpn_dir = os.path.abspath(os.path.join(o.root, o.vpn_name))
+        log(5, "o.vpn_dir = %s" % o.vpn_dir)
         o.hosts_dir = os.path.join(o.vpn_dir, 'hosts')
 
     def gen_keys(o):
@@ -173,7 +186,7 @@ class TincRollout():
                     if line.strip() == "-----BEGIN RSA PUBLIC KEY-----":
                         found_key = True
             if found_subnet and found_key:
-                #print "%s already exists.  No need to generate keys." % machine_file
+                print "%s already exists.  No need to generate keys." % machine_file
                 gen_keys = False
         if gen_keys: # ugly ugly ugly
             if os.path.exists(key_file):
