@@ -110,7 +110,6 @@ def parse_params(argv=None):
     act.add_argument('--new', dest='action', help='Start a new tinc vpn', action='store_const', const='new')
     #act.add_argument('--remove', dest='action', help='remove machines from the tinc vpn', action='store_const', const='remove') #TODO: implement remove
     act.add_argument('--package', dest='action', help='tar up the vpn configuration for export', action='store_const', const='package')
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true')
 
     # options for all actions
     parser.add_argument('-n', '--name', dest="vpn_name", default=None, action='store',
@@ -126,6 +125,9 @@ def parse_params(argv=None):
                         help='peer node to add or remove. May be specified more than once. Default is all known possible peers.')
     parser.add_argument('--tar', default=tar_file,
                         help="path to tar file containing tinc.conf and host keys. If blank, we'll look for %s." % tar_file)
+
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true')
+
     args = parser.parse_args()
 
     global VERBOSE
@@ -173,8 +175,8 @@ class TincRollout():
 
     def gen_keys(o):
         ## Gen keys if needed
-        machine_file = os.path.join(o.root, o.vpn_name, "hosts", o.hostname)
-        key_file = os.path.join(o.root, o.vpn_name, "rsa_key.priv")
+        machine_file = os.path.join(o.vpn_dir, "hosts", o.hostname)
+        key_file = os.path.join(o.vpn_dir, "rsa_key.priv")
         gen_keys = True
         if os.path.exists(key_file) and os.path.exists(machine_file):
             found_subnet=False
