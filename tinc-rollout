@@ -234,7 +234,7 @@ class TincRollout():
                 if line.strip() == o.vpn_name:
                     found = True
             if not found:
-                with open("nets.boot", 'a') as OUTF:
+                with open(os.path.join(o.vpn_dir, "nets.boot"), 'a') as OUTF:
                     OUTF.write(o.vpn_name + "\n")
 
 
