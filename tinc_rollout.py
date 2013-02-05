@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-tinc-rollout
+tinc_rollout
 ============
 
 This script sets up or updates a host to connect to a tinc vpn.  It
@@ -24,7 +24,7 @@ Creating A New Network
 If you want to make a network from scratch (as opposed to joining an
 existing network), use the "new" command:
 
-tinc-rollout --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
+tinc_rollout --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
 
 The IP address is how your box will be known on the vpn.  It should
 probably begin with 10. or 198.162 or 17.16.  Your hostname is the
@@ -34,9 +34,9 @@ a hostname in /etc/hostname, you might want to just use that.
 Joining An Existing Network
 ---------------------------
 
-tinc-rollout --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc-rollout.tar
+tinc_rollout --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc_rollout.tar
 
-The tinc-rollout.tar file should be provided by somebody else in the
+The tinc_rollout.tar file should be provided by somebody else in the
 vpn.  It contains some basic configuration and the host keys for peer
 nodes.  This will create the network if needed and copy host files to
 it so you can accept connections with that network.
@@ -48,14 +48,14 @@ Adding Nodes To Your Network
 ----------------------------
 
 If in the future new machines join your vpn, simply drop their
-host file in /etc/tinc/network_name/hosts or do another "tinc-rollout
+host file in /etc/tinc/network_name/hosts or do another "tinc_rollout
 --install" right on top of your existing config.
 
 Inviting Others Into the Network
 --------------------------------
 
 After you do the install, you might want to use the "package" command
-to add your host key to the tinc-rollout.tar file.  Then you can give
+to add your host key to the tinc_rollout.tar file.  Then you can give
 that file to other folks to configure their own tinc nodes.
 
 
