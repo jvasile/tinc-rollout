@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-tinc_rollout
+tinc_rollout.py
 ============
 
 This script sets up or updates a host to connect to a tinc vpn.  It
@@ -24,7 +24,7 @@ Creating A New Network
 If you want to make a network from scratch (as opposed to joining an
 existing network), use the "new" command:
 
-tinc_rollout --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
+tinc_rollout.py --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
 
 The IP address is how your box will be known on the vpn.  It should
 probably begin with 10. or 198.162 or 17.16.  Your hostname is the
@@ -34,7 +34,7 @@ a hostname in /etc/hostname, you might want to just use that.
 Joining An Existing Network
 ---------------------------
 
-tinc_rollout --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc_rollout.tar
+tinc_rollout.py --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc_rollout.tar
 
 The tinc_rollout.tar file should be provided by somebody else in the
 vpn.  It contains some basic configuration and the host keys for peer
@@ -48,7 +48,7 @@ Adding Nodes To Your Network
 ----------------------------
 
 If in the future new machines join your vpn, simply drop their
-host file in /etc/tinc/network_name/hosts or do another "tinc_rollout
+host file in /etc/tinc/network_name/hosts or do another "tinc_rollout.py
 --install" right on top of your existing config.
 
 Inviting Others Into the Network
@@ -71,6 +71,21 @@ TODO: auto update the package
 TODO: auto download the package
 TODO: send package back to maintainer
 TODO: hosts-available/hosts-enabled
+
+Import Tinc Rollout
+-------------------
+
+If you want to use these routines in your python script, you probably
+want to do something like this:
+
+    from tinc_rollout import TincRollout
+
+    TR=TincRollout({'root':'/etc/tinc',
+                    'vpn_name':'freedombox'})
+    print TR.get_host_name()
+    print TR.get_host_file()
+
+
 
 License and Copyright
 ---------------------
@@ -197,11 +212,14 @@ def parse_params(argv=None):
     return args
 
 class TincRollout():
-    def __init__(o, opt={}):
-        o.__dict__.update(vars(opt))
-        log.debug("o.root = %s" % o.root)
+    def __init__(o, opt=None):
+        if isinstance(opt, dict):
+            o.__dict__.update(opt)
+        elif opt:
+            o.__dict__.update(vars(opt))
+        #log.debug("o.root = %s" % o.root)
         o.vpn_dir = os.path.abspath(os.path.join(o.root, o.vpn_name))
-        log.debug("o.vpn_dir = %s" % o.vpn_dir)
+        #log.debug("o.vpn_dir = %s" % o.vpn_dir)
         o.hosts_dir = os.path.join(o.vpn_dir, 'hosts')
 
     def gen_keys(o):
@@ -219,7 +237,7 @@ class TincRollout():
                     if line.strip() == "-----BEGIN RSA PUBLIC KEY-----":
                         found_key = True
             if found_subnet and found_key:
-                log.info("%s already exists.  No need to generate keys." % machine_file)
+                #log.info("%s already exists.  No need to generate keys." % machine_file)
                 gen_keys = False
         if gen_keys: # ugly ugly ugly
             if os.path.exists(key_file):
@@ -251,7 +269,6 @@ class TincRollout():
         for line in slurp_if_exists(os.path.join(o.vpn_dir,"tinc.conf")).split("\n"):
             if not '=' in line:
                 continue
-            print line
             (key, val) = line.split("=")
             if key.strip() == "Name":
                 return val.strip()
