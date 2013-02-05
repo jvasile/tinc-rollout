@@ -75,10 +75,11 @@ TODO: hosts-available/hosts-enabled
 License and Copyright
 ---------------------
 
-This software is Copyright (c) 2012 James Vasile.  It is published
-under the terms of the GNU General Public License, version 3 or later.
-A copy of the latest version of that license should be available at
-http://www.gnu.org/licenses/gpl.html  See COPYING for details.
+This software is Copyright (c) 2012-2013 James Vasile.  It is
+published under the terms of the GNU General Public License, version 3
+or later.  A copy of the latest version of that license should be
+available at http://www.gnu.org/licenses/gpl.html See COPYING for
+details.
 
 This program is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
