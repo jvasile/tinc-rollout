@@ -67,6 +67,10 @@ systems, but fixes, or new capabilities!  Grep the code for 'TODO' to
 get a list of future work.
 
 TODO: support ipv6
+TODO: auto update the package
+TODO: auto download the package
+TODO: send package back to maintainer
+TODO: hosts-available/hosts-enabled
 
 License and Copyright
 ---------------------
