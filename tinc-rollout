@@ -323,8 +323,8 @@ class NewVPN(TincRollout):
     def write_config(o, fname):
         filespec = os.path.join(o.vpn_dir, fname)
         d = {
-            "tinc-up":"#!/bin/sh\n$IP=%s\nifconfig $INTERFACE $IP netmask 255.255.255.0\n" % o.ip,
-            "tinc-down":"#!/bin/sh\n$VPN_NAME=%s\nifconfig $VPN_NAME down\n" % o.vpn_name,
+            "tinc-up":"#!/bin/sh\nIP=%s\nifconfig $INTERFACE $IP netmask 255.255.255.0\n" % o.ip,
+            "tinc-down":"#!/bin/sh\nVPN_NAME=%s\nifconfig $VPN_NAME down\n" % o.vpn_name,
             "tinc.conf":"Name = %s\nAddressFamily = ipv4\nDevice = /dev/net/tun\nLocalDiscovery = yes\n" % o.hostname,
             }
         with open(filespec, 'w') as OUTF:
