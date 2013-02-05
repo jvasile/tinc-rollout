@@ -103,6 +103,7 @@ def slurp_if_exists(fname):
         with open(fname, 'r') as INF:
             return INF.read()
 
+
 class chdir:
     def __enter__(self):
         self.curdir = os.getcwd()
@@ -243,6 +244,29 @@ class TincRollout():
                 with open(nets_file, 'a') as OUTF:
                     OUTF.write(o.vpn_name + "\n")
 
+    def get_host_name(o):
+        """Returns name of this machine in the tinc network, as
+        specified in the tinc.conf file."""
+        for line in slurp_if_exists(os.path.join(o.vpn_dir,"tinc.conf")).split("\n"):
+            if not '=' in line:
+                continue
+            print line
+            (key, val) = line.split("=")
+            if key.strip() == "Name":
+                return val.strip()
+
+    def get_host_file(o):
+        """Returns contents of host file for this machine.  Assumes
+        network name is freedombox and it's all in o.vpn_dir"""
+        
+        return slurp_if_exists(os.path.join(o.vpn_dir, "hosts", o.get_host_name()))
+
+    def add_peer(o, peer_name, contents):
+        """Adds contents as a hosts file with the given peer_name to
+        the tinc vpn named vpn_name."""
+        with open(os.path.join(os.path.join(o.vpn_dir, "hosts", peer_name)), 'w') as OUT:
+            OUTF.write(contents)
+
 
 class Package(TincRollout):
     def package(o):
@@ -274,8 +298,7 @@ class Add(TincRollout):
                         ## file protects against malicious tar files
                         ## with absolute paths in them.
                         contents = TAR.extractfile(member).read()
-                        with open(os.path.join(o.vpn_dir, member.name),'w') as OUTF:
-                            OUTF.write(contents)
+                        o.add_peer(member.name, contents)
                         
     def add_connect_to(o):
         """Look at hosts in hosts dir, add any that have addresses to tinc.conf.
