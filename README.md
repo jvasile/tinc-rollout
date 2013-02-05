@@ -36,7 +36,11 @@ tinc-rollout --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc-r
 
 The tinc-rollout.tar file should be provided by somebody else in the
 vpn.  It contains some basic configuration and the host keys for peer
-nodes. 
+nodes.  This will create the network if needed and copy host files to
+it so you can accept connections with that network.
+
+Any time two machines want to talk to each other, they will need to
+have each other's keys.
 
 Adding Nodes To Your Network
 ----------------------------
@@ -61,6 +65,10 @@ systems, but fixes, or new capabilities!  Grep the code for 'TODO' to
 get a list of future work.
 
 TODO: support ipv6
+TODO: auto update the package
+TODO: auto download the package
+TODO: send package back to maintainer
+TODO: hosts-available/hosts-enabled
 
 License and Copyright
 ---------------------
