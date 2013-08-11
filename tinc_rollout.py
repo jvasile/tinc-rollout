@@ -109,7 +109,7 @@ me to look at tinc over the last few years and especially in the
 FreedomBox context.  I just wish I'd gotten to it sooner.
 """
 
-import sys, os, subprocess, argparse, tarfile, stat, logging
+import sys, os, subprocess, argparse, tarfile, stat, logging, re
 
 ## This is just defaults that is used by argparse
 tar_file = os.path.basename(sys.argv[0])+".tar"
@@ -347,6 +347,7 @@ class Add(TincRollout):
 
     def add(o):
         log.info("Adding %s tinc files" % o.vpn_name)
+        o.hostname = re.sub('[^0-9a-zA-Z_]+', '_', "%s" % o.hostname) # Replace invalid characters for the tinc daemon name with underscores
         NewVPN(o).create() # do a base install w/o overwriting keys or config
         o.add_peers()
         o.add_connect_to()
