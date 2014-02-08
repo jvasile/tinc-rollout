@@ -407,9 +407,10 @@ def main(argv):
     elif opt.action == "remove":
         Remove(opt).remove()
 if __name__ == "__main__":
-    if sys.argv[1] == "document":
-        with open("README.md", 'w') as OUTF:
-            OUTF.write(__doc__)
-        sys.exit()
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == "document":
+            with open("README.md", 'w') as OUTF:
+                OUTF.write(__doc__)
+                sys.exit()
 
     main(sys.argv)
