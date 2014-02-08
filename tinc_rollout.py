@@ -22,9 +22,9 @@ Creating A New Network
 ----------------------
 
 If you want to make a network from scratch (as opposed to joining an
-existing network), use the "new" command:
+existing network), use the "add" command:
 
-tinc_rollout.py --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
+tinc_rollout.py --add -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
 
 The IP address is how your box will be known on the vpn.  It should
 probably begin with 10. or 198.162 or 17.16.  Your hostname is the
