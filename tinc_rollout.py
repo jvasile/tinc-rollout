@@ -256,7 +256,7 @@ class TincRollout():
             with open(nets_file, 'a') as OUTF:
                 OUTF.write(o.vpn_name + "\n")
         else:
-            with open("nets.boot", 'r') as INF:
+            with open(nets_file, 'r') as INF:
                 lines = INF.readlines()
             found = False
             for line in lines:
