@@ -244,7 +244,10 @@ class TincRollout():
                 os.unlink(key_file)
             with open(machine_file, 'w') as OUTF:
                 OUTF.write("Subnet = %s/32\n" % o.ip)
-            subprocess.call('tincd -n "%s" --generate-keys' % o.vpn_name, shell=True)
+            ret = subprocess.call('tincd -n "%s" --generate-keys' % o.vpn_name, shell=True)
+            if ret == 127:
+                log.error(str(ret)+"tincd not found. Please make sure that the tinc package is installed and that you are running this command as root.")
+                sys.exit()
 
     def add_nets_boot(o):
         """Add vpn to nets.boot"""
