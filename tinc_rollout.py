@@ -285,7 +285,7 @@ class TincRollout():
     def add_peer(o, peer_name, contents):
         """Adds contents as a hosts file with the given peer_name to
         the tinc vpn named vpn_name."""
-        with open(os.path.join(os.path.join(o.vpn_dir, "hosts", peer_name)), 'w') as OUT:
+        with open(os.path.join(os.path.join(o.vpn_dir, "hosts", peer_name)), 'w') as OUTF:
             OUTF.write(contents)
 
 
@@ -319,7 +319,7 @@ class Add(TincRollout):
                         ## file protects against malicious tar files
                         ## with absolute paths in them.
                         contents = TAR.extractfile(member).read()
-                        o.add_peer(member.name, contents)
+                        o.add_peer(fname, contents)
                         
     def add_connect_to(o):
         """Look at hosts in hosts dir, add any that have addresses to tinc.conf.
