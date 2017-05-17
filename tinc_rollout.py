@@ -22,9 +22,9 @@ Creating A New Network
 ----------------------
 
 If you want to make a network from scratch (as opposed to joining an
-existing network), use the "new" command:
+existing network), use the "add" command:
 
-tinc_rollout.py --new -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
+tinc_rollout.py --add -n network_name --hostname your_hostname --ip xxx.xxx.xxx.xxx
 
 The IP address is how your box will be known on the vpn.  It should
 probably begin with 10. or 198.162 or 17.16.  Your hostname is the
@@ -34,7 +34,7 @@ a hostname in /etc/hostname, you might want to just use that.
 Joining An Existing Network
 ---------------------------
 
-tinc_rollout.py --install -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc_rollout.tar
+tinc_rollout.py --add -n network_name --ip xxx.xxx.xxx.xxx --tar path/to/tinc_rollout.tar
 
 The tinc_rollout.tar file should be provided by somebody else in the
 vpn.  It contains some basic configuration and the host keys for peer
@@ -49,12 +49,12 @@ Adding Nodes To Your Network
 
 If in the future new machines join your vpn, simply drop their
 host file in /etc/tinc/network_name/hosts or do another "tinc_rollout.py
---install" right on top of your existing config.
+--add" right on top of your existing config.
 
 Inviting Others Into the Network
 --------------------------------
 
-After you do the install, you might want to use the "package" command
+After you do the add, you might want to use the "package" command
 to add your host key to the tinc_rollout.tar file.  Then you can give
 that file to other folks to configure their own tinc nodes.
 
@@ -244,7 +244,10 @@ class TincRollout():
                 os.unlink(key_file)
             with open(machine_file, 'w') as OUTF:
                 OUTF.write("Subnet = %s/32\n" % o.ip)
-            subprocess.call('tincd -n "%s" --generate-keys' % o.vpn_name, shell=True)
+            ret = subprocess.call('tincd -n "%s" --generate-keys' % o.vpn_name, shell=True)
+            if ret == 127:
+                log.error(str(ret)+"tincd not found. Please make sure that the tinc package is installed and that you are running this command as root.")
+                sys.exit()
 
     def add_nets_boot(o):
         """Add vpn to nets.boot"""
@@ -253,7 +256,7 @@ class TincRollout():
             with open(nets_file, 'a') as OUTF:
                 OUTF.write(o.vpn_name + "\n")
         else:
-            with open("nets.boot", 'r') as INF:
+            with open(nets_file, 'r') as INF:
                 lines = INF.readlines()
             found = False
             for line in lines:
@@ -282,7 +285,7 @@ class TincRollout():
     def add_peer(o, peer_name, contents):
         """Adds contents as a hosts file with the given peer_name to
         the tinc vpn named vpn_name."""
-        with open(os.path.join(os.path.join(o.vpn_dir, "hosts", peer_name)), 'w') as OUT:
+        with open(os.path.join(os.path.join(o.vpn_dir, "hosts", peer_name)), 'w') as OUTF:
             OUTF.write(contents)
 
 
@@ -316,7 +319,7 @@ class Add(TincRollout):
                         ## file protects against malicious tar files
                         ## with absolute paths in them.
                         contents = TAR.extractfile(member).read()
-                        o.add_peer(member.name, contents)
+                        o.add_peer(fname, contents)
                         
     def add_connect_to(o):
         """Look at hosts in hosts dir, add any that have addresses to tinc.conf.
@@ -407,9 +410,10 @@ def main(argv):
     elif opt.action == "remove":
         Remove(opt).remove()
 if __name__ == "__main__":
-    if sys.argv[1] == "document":
-        with open("README.md", 'w') as OUTF:
-            OUTF.write(__doc__)
-        sys.exit()
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == "document":
+            with open("README.md", 'w') as OUTF:
+                OUTF.write(__doc__)
+                sys.exit()
 
     main(sys.argv)
